@@ -149,6 +149,10 @@ tasks.withType(JavaCompile).configureEach {
 	it.options.release = 21
 }
 
+test {
+	failOnNoDiscoveredTests = false
+}
+
 def enumSourceDir = layout.buildDirectory.dir("generated/enums/main/java")
 def enumGeneratorTask = tasks.register("enumGeneratorTask", EnumGeneratorTask) {
 	outputDirectory = enumSourceDir
