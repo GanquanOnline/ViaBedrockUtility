@@ -1,33 +1,33 @@
-# GanquanOnline ViaBedrockUtility
+# ViaBedrockUtility
 
 Public fork of [EaseCation/ViaBedrockUtility](https://github.com/EaseCation/ViaBedrockUtility) (`master`, based on [`ebfbe10`](https://github.com/EaseCation/ViaBedrockUtility/commit/ebfbe1073306c0db5627f825cd6b987445eb5703)).
 EaseCation/ViaBedrockUtility continues the [Oryxel/ViaBedrockUtility](https://github.com/Oryxel/ViaBedrockUtility) / ViaBedrock client-mod line.
 
-This Fabric client mod restores Bedrock custom entities, skins, and animations for a Java Edition client that connects through [GanquanOnline/ViaProxy_NetEase](https://github.com/GanquanOnline/ViaProxy_NetEase) + [GanquanOnline/ViaBedrock_NetEase](https://github.com/GanquanOnline/ViaBedrock_NetEase).
+This Fabric client mod restores Bedrock custom entities, skins, and animations for a Java Edition client that connects through ViaProxy_NetEase and ViaBedrock_NetEase.
 
 ## Fork lineage
 
 | This repository | Pulled from | Branch | Upstream commit |
 |---|---|---|---|
-| [GanquanOnline/ViaBedrockUtility](https://github.com/GanquanOnline/ViaBedrockUtility) | [EaseCation/ViaBedrockUtility](https://github.com/EaseCation/ViaBedrockUtility) | `master` | `ebfbe1073306c0db5627f825cd6b987445eb5703` |
+| **ViaBedrockUtility** | [EaseCation/ViaBedrockUtility](https://github.com/EaseCation/ViaBedrockUtility) | `master` | `ebfbe1073306c0db5627f825cd6b987445eb5703` |
 
 ## Related repositories
 
 | Repository | Role |
 |---|---|
-| [ViaProxy_NetEase](https://github.com/GanquanOnline/ViaProxy_NetEase) | Proxy the Java client connects to |
-| [ViaBedrock_NetEase](https://github.com/GanquanOnline/ViaBedrock_NetEase) | Translates Bedrock protocol and forwards custom payloads |
+| ViaProxy_NetEase | Proxy the Java client connects to |
+| ViaBedrock_NetEase | Translates Bedrock protocol and forwards custom payloads |
 | **ViaBedrockUtility (this repo)** | Client-side rendering of those payloads |
-| [ViaVersion](https://github.com/GanquanOnline/ViaVersion) | Protocol library used inside the proxy |
+| ViaVersion | Protocol library used inside the proxy |
 
-Communication with ViaBedrock:
+Communication with ViaBedrock_NetEase:
 
 | Channel | Direction | Purpose |
 |---|---|---|
 | `viabedrockutility:confirm` | C<->S | Handshake that the client mod is installed |
 | `viabedrockutility:data` | S->C | Entity models, triggered animations, skins, capes, particles |
 
-Changing payload layout requires a matching change in GanquanOnline/ViaBedrock_NetEase.
+Changing payload layout requires a matching change in ViaBedrock_NetEase.
 
 ## Local changes
 
