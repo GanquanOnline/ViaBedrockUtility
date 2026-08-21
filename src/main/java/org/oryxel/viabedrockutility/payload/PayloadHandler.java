@@ -27,6 +27,7 @@ import org.oryxel.viabedrockutility.fabric.ViaBedrockUtilityFabric;
 import org.oryxel.viabedrockutility.mixin.impl.accessor.PlayerSkinFieldAccessor;
 import net.easecation.bedrockmotion.pack.PackManager;
 import org.oryxel.viabedrockutility.payload.handler.CustomEntityPayloadHandler;
+import org.oryxel.viabedrockutility.payload.impl.entity.AnimateEntityPayload;
 import org.oryxel.viabedrockutility.payload.impl.entity.ModelRequestPayload;
 import org.oryxel.viabedrockutility.payload.impl.skin.BaseSkinPayload;
 import org.oryxel.viabedrockutility.payload.impl.skin.CapeDataPayload;
@@ -83,10 +84,58 @@ public class PayloadHandler {
             this.handle(animData);
         } else if (payload instanceof SpawnParticlePayload particlePayload) {
             this.handle(particlePayload);
+        } else if (payload instanceof AnimateEntityPayload animatePayload) {
+            this.handle(animatePayload);
         }
     }
 
     public void handle(final ModelRequestPayload payload) {}
+
+    public void handle(final AnimateEntityPayload payload) {
+        if (payload.getAnimationName() == null || payload.getAnimationName().isBlank()) {
+            return;
+        }
+        if (this.packManager == null) {
+            return;
+        }
+
+        final var renderer = this.cachedPlayerRenderers.get(payload.getUuid());
+        if (!(renderer instanceof CustomPlayerRenderer customRenderer)) {
+            return;
+        }
+
+        String animId = payload.getAnimationName();
+        final CachedPlayerSkin cachedSkin = this.cachedPlayerSkins.get(payload.getUuid());
+        if (cachedSkin != null && cachedSkin.getResourcePatch() != null && !cachedSkin.getResourcePatch().isEmpty()) {
+            try {
+                final JsonObject patch = JsonParser.parseString(cachedSkin.getResourcePatch()).getAsJsonObject();
+                if (patch.has("animations")) {
+                    final JsonObject anims = patch.getAsJsonObject("animations");
+                    if (anims.has(animId)) {
+                        animId = anims.get(animId).getAsString();
+                    }
+                }
+            } catch (final Exception ignored) {
+            }
+        }
+
+        final var animData = this.packManager.getAnimationDefinitions().getAnimations().get(animId);
+        if (animData == null) {
+            ViaBedrockUtilityFabric.LOGGER.debug("[Animation] Player animation '{}' not found for {}", animId, payload.getUuid());
+            return;
+        }
+
+        if (!(customRenderer.getModel() instanceof IBedrockAnimatedModel animatedModel)) {
+            return;
+        }
+        PlayerAnimationManager animManager = animatedModel.viaBedrockUtility$getAnimationManager();
+        if (animManager == null) {
+            animManager = new PlayerAnimationManager();
+            animatedModel.viaBedrockUtility$setAnimationManager(animManager);
+        }
+        animManager.addAnimation(payload.getAnimationName(), animData);
+        ViaBedrockUtilityFabric.LOGGER.debug("[Animation] Playing player animation '{}' ({}) for {}", payload.getAnimationName(), animId, payload.getUuid());
+    }
 
     public void handle(final SpawnParticlePayload payload) {
         ViaBedrockUtilityFabric.LOGGER.info("[Particle:L4] Handling SpawnParticlePayload: {} at ({}, {}, {}), molang={}", payload.getIdentifier(), payload.getX(), payload.getY(), payload.getZ(), payload.getMolangVarsJson());

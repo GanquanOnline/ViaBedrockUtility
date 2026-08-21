@@ -7,6 +7,7 @@ import org.oryxel.viabedrockutility.material.VanillaMaterials;
 import org.oryxel.viabedrockutility.material.data.Material;
 import net.easecation.bedrockmotion.pack.definitions.EntityDefinitions;
 import org.oryxel.viabedrockutility.payload.PayloadHandler;
+import org.oryxel.viabedrockutility.payload.impl.entity.AnimateEntityPayload;
 import org.oryxel.viabedrockutility.payload.impl.entity.ModelRequestPayload;
 import team.unnamed.mocha.runtime.Scope;
 import team.unnamed.mocha.runtime.binding.JavaObjectBinding;
@@ -52,5 +53,15 @@ public class CustomEntityPayloadHandler extends PayloadHandler {
         ticker.setScale(payload.getEntityData().scale());
 
         ticker.update();
+    }
+
+    @Override
+    public void handle(AnimateEntityPayload payload) {
+        final CustomEntityTicker ticker = this.cachedCustomEntities.get(payload.getUuid());
+        if (ticker != null) {
+            ticker.playTriggeredAnimation(payload.getAnimationName());
+            return;
+        }
+        super.handle(payload);
     }
 }

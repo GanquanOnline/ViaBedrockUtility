@@ -1,20 +1,3 @@
-/*
- * This file is part of ViaBedrock - https://github.com/RaphiMC/ViaBedrock
- * Copyright (C) 2023-2025 RK_01/RaphiMC and contributors
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
 package org.oryxel.viabedrockutility.generator;
 
 import org.apache.commons.io.FileUtils;
@@ -65,7 +48,7 @@ public abstract class EnumGeneratorTask extends DefaultTask {
         outputDir.mkdirs();
 
         final Map<String, List<EnumField>> enums = new HashMap<>();
-        final Document doc = Jsoup.parse(new URL(ENUMS_URL), 10_000);
+        final Document doc = parseEnumsDocument();
         for (Element element : doc.selectXpath("/html/body/table/tbody/tr")) {
             final Elements tableElements = element.select("td");
             if (tableElements.isEmpty()) continue;
@@ -154,6 +137,21 @@ public abstract class EnumGeneratorTask extends DefaultTask {
         }
     }
 
+    private static Document parseEnumsDocument() throws Throwable {
+        try {
+            return Jsoup.parse(new URL(ENUMS_URL), 10_000);
+        } catch (Exception e) {
+            final URL localEnums = EnumGeneratorTask.class.getClassLoader().getResource("enums.html");
+            if (localEnums == null) {
+                throw e;
+            }
+            System.out.println("Remote enums.html unavailable (" + e.getMessage() + "), using bundled copy.");
+            try (java.io.InputStream in = localEnums.openStream()) {
+                return Jsoup.parse(in, "UTF-8", localEnums.toExternalForm());
+            }
+        }
+    }
+
     private static class EnumField {
         private final String name;
         private String value;
@@ -183,3 +181,4 @@ public abstract class EnumGeneratorTask extends DefaultTask {
     }
 
 }
+

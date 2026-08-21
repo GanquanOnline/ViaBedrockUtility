@@ -421,4 +421,30 @@ public class CustomEntityTicker implements AnimationEventListener {
     public Set<ActorFlags> entityFlags() {
         return this.entityFlags;
     }
+
+    public void playTriggeredAnimation(final String animationName) {
+        if (animationName == null || animationName.isBlank()) {
+            return;
+        }
+
+        String animId = this.entityDefinition.entityData().getAnimations().get(animationName);
+        if (animId == null) {
+            animId = animationName;
+        }
+
+        if (animId.startsWith("controller.animation.")) {
+            ViaBedrockUtilityFabric.LOGGER.debug("[Animation] Ignoring triggered controller '{}'", animId);
+            return;
+        }
+
+        final var animData = this.packManager.getAnimationDefinitions().getAnimations().get(animId);
+        if (animData == null) {
+            ViaBedrockUtilityFabric.LOGGER.debug("[Animation] Triggered animation '{}' not found", animId);
+            return;
+        }
+
+        this.renderer.play(animData);
+        ViaBedrockUtilityFabric.LOGGER.debug("[Animation] Playing triggered animation '{}' ({})", animationName, animId);
+    }
+
 }

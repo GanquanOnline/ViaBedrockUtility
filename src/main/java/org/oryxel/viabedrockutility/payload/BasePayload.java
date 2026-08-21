@@ -29,12 +29,12 @@ public class BasePayload implements CustomPayload {
             throw new RuntimeException("Invalid type: " + type);
         }
 
-        switch (PayloadType.values()[type]) {
+        final BasePayload decoded = switch (PayloadType.values()[type]) {
             case CONFIRM -> {
                 // Confirm that ViaBedrock is present, this should be sent back right after we send confirm register channel.
                 ViaBedrockUtility.getInstance().setViaBedrockPresent(true);
                 ViaBedrockUtilityFabric.LOGGER.info("[Handshake] Received CONFIRM from ViaBedrock, handshake successful!");
-                return new BasePayload();
+                yield new BasePayload();
             }
             case MODEL_REQUEST -> {
                 final java.util.UUID uuid = buf.readUuid();
@@ -63,28 +63,31 @@ public class BasePayload implements CustomPayload {
                     scale = buf.readFloat();
                 }
 
-                return new ModelRequestPayload(identifier, EnumUtil.getEnumSetFromBitmask(ActorFlags.class, combinedFlags, ActorFlags::getValue), variant, mark_variant, skinId, scale, uuid);
+                yield new ModelRequestPayload(identifier, EnumUtil.getEnumSetFromBitmask(ActorFlags.class, combinedFlags, ActorFlags::getValue), variant, mark_variant, skinId, scale, uuid);
             }
 
             case ANIMATE -> {
-                // TODO: Implement this.
-                return new BasePayload();
+                // ViaBedrock writes UUID + animation name. Leaving those bytes unread
+                // makes vanilla treat the packet as leftover data and disconnect.
+                final java.util.UUID uuid = buf.readUuid();
+                final String animationName = readString(buf);
+                yield new AnimateEntityPayload(uuid, animationName);
             }
 
             case CAPE -> {
-                return CapeDataPayload.STREAM_DECODER.decode(buf);
+                yield CapeDataPayload.STREAM_DECODER.decode(buf);
             }
             case SKIN_INFORMATION -> {
-                return BaseSkinPayload.STREAM_DECODER.decode(buf);
+                yield BaseSkinPayload.STREAM_DECODER.decode(buf);
             }
             case SKIN_DATA -> {
-                return SkinDataPayload.STREAM_DECODER.decode(buf);
+                yield SkinDataPayload.STREAM_DECODER.decode(buf);
             }
             case SKIN_ANIMATION_INFO -> {
-                return SkinAnimationInfoPayload.STREAM_DECODER.decode(buf);
+                yield SkinAnimationInfoPayload.STREAM_DECODER.decode(buf);
             }
             case SKIN_ANIMATION_DATA -> {
-                return SkinAnimationDataPayload.STREAM_DECODER.decode(buf);
+                yield SkinAnimationDataPayload.STREAM_DECODER.decode(buf);
             }
 
             case SPAWN_PARTICLE -> {
@@ -94,11 +97,16 @@ public class BasePayload implements CustomPayload {
                 final float z = buf.readFloat();
                 final String molangVarsJson = buf.readBoolean() ? readString(buf) : "";
                 ViaBedrockUtilityFabric.LOGGER.info("[Particle:L3] Decoded SPAWN_PARTICLE payload: {} at ({}, {}, {})", identifier, x, y, z);
-                return new SpawnParticlePayload(identifier, x, y, z, molangVarsJson);
+                yield new SpawnParticlePayload(identifier, x, y, z, molangVarsJson);
             }
 
             default -> throw new IllegalStateException("Unexpected value: " + PayloadType.values()[type]);
+        };
+        if (buf.readableBytes() > 0) {
+            ViaBedrockUtilityFabric.LOGGER.warn("[Payload] Discarding {} leftover byte(s) after decoding type {}", buf.readableBytes(), type);
+            buf.skipBytes(buf.readableBytes());
         }
+        return decoded;
     });
 
     public void handle(final PayloadHandler handler) {

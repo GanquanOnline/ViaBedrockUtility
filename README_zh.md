@@ -1,3 +1,11 @@
+# GanquanOnline ViaBedrockUtility
+
+这是 [EaseCation/ViaBedrockUtility](https://github.com/EaseCation/ViaBedrockUtility) 的公开分支（`master`，基于 [`ebfbe10`](https://github.com/EaseCation/ViaBedrockUtility/commit/ebfbe1073306c0db5627f825cd6b987445eb5703)）。
+
+它与 [GanquanOnline/ViaBedrock](https://github.com/GanquanOnline/ViaBedrock) 通过 `viabedrockutility:data` / `viabedrockutility:confirm` 自定义通道通信，需要和代理侧一起使用。完整关系见 [英文 README](README.md)。
+
+---
+
 # ViaBedrockUtility
 
 Fabric 客户端 Mod，为通过 [ViaProxy](https://github.com/ViaVersion/ViaProxy) + [ViaBedrock](https://github.com/RaphiMC/ViaBedrock) 连接 Bedrock 服务器的 Java 版客户端提供增强渲染能力。
