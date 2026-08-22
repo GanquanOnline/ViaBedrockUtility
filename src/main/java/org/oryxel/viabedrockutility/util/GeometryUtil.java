@@ -20,6 +20,10 @@ import java.util.*;
 
 public final class GeometryUtil {
     private static final List<String> LEG_RELATED = List.of("leftleg", "rightleg", "rightpants", "leftpants");
+    private static final List<String> ARM_RELATED = List.of(
+            "leftarm", "rightarm", "left_arm", "right_arm",
+            "leftsleeve", "rightsleeve", "left_sleeve", "right_sleeve"
+    );
 
     public static Model buildModel(final BedrockGeometryModel geometry, final boolean player, boolean slim) {
         return buildModel(geometry, player, slim, null);
@@ -35,9 +39,13 @@ public final class GeometryUtil {
         // Pre-compute which bones are leg-related (including all descendants of leg bones).
         // Child bones of legs must use the same Y coordinate system as their parent leg bone;
         // otherwise the Y-inversion transform (-Y + 24.016) causes severe height offset.
+        // Arm overlays such as leftSleeve stay parented to the arm. Their cubes must also be
+        // relative to this bone origin, or the arm translation is applied twice.
         final Set<String> legRelatedBones = new HashSet<>();
+        final Set<String> armRelatedBones = new HashSet<>();
         final Map<String, String> boneParentMap = new LinkedHashMap<>();
         final Map<String, Float> bonePivotY = new HashMap<>();
+        final Map<String, float[]> boneJavaPivots = new HashMap<>();
         if (player) {
             for (final Parent bone : geometry.getParents()) {
                 String bn = bone.getName().toLowerCase(Locale.ROOT);
@@ -49,16 +57,20 @@ public final class GeometryUtil {
                 if (LEG_RELATED.contains(bn)) {
                     legRelatedBones.add(bn);
                 }
-            }
-            boolean changed = true;
-            while (changed) {
-                changed = false;
-                for (Map.Entry<String, String> entry : boneParentMap.entrySet()) {
-                    if (!legRelatedBones.contains(entry.getKey()) && legRelatedBones.contains(entry.getValue())) {
-                        legRelatedBones.add(entry.getKey());
-                        changed = true;
-                    }
+                if (ARM_RELATED.contains(bn)) {
+                    armRelatedBones.add(bn);
                 }
+            }
+            expandWithDescendants(legRelatedBones, boneParentMap);
+            expandWithDescendants(armRelatedBones, boneParentMap);
+            for (final Parent bone : geometry.getParents()) {
+                String bn = bone.getName().toLowerCase(Locale.ROOT);
+                boolean boneIsLeg = legRelatedBones.contains(bn);
+                boneJavaPivots.put(bn, new float[] {
+                        bone.getPivot().getX(),
+                        boneIsLeg ? bone.getPivot().getY() : -bone.getPivot().getY() + 24.016F,
+                        bone.getPivot().getZ()
+                });
             }
         }
 
@@ -67,28 +79,50 @@ public final class GeometryUtil {
             final Map<String, ModelPart> children = Maps.newHashMap();
             final ModelPart part = new ModelPart(List.of(), children);
 
-            boolean neededOffset = switch (bone.getName().toLowerCase(Locale.ROOT)) {
-                case "rightarm", "leftarm" -> player;
-                default -> false;
-            };
-
             ((IModelPart)((Object)part)).viaBedrockUtility$setVBUModel();
             ((IModelPart)((Object)part)).viaBedrockUtility$setName(bone.getName());
+            // Arm meshes use relative cubes + origin, so do not cancel originX/Z here.
+            // Cancelling it would also move held items back to the torso.
+            boolean neededOffset = false;
             ((IModelPart)((Object)part)).viaBedrockUtility$setNeededOffset(neededOffset);
             ((IModelPart)((Object)part)).viaBedrockUtility$setAngles(new Vector3f(bone.getRotation().getX() , bone.getRotation().getY(), bone.getRotation().getZ()));
 
             boolean isLeg = player && legRelatedBones.contains(bone.getName().toLowerCase(Locale.ROOT));
+            float javaPivotX = bone.getPivot().getX();
+            float javaPivotY = isLeg ? bone.getPivot().getY() : -bone.getPivot().getY() + 24.016F;
+            float javaPivotZ = bone.getPivot().getZ();
+            boolean isArm = player && armRelatedBones.contains(bone.getName().toLowerCase(Locale.ROOT));
             if (isLeg) {
-                float pivotY = bone.getPivot().getY();
                 // Vanilla applyTransform translates to origin but never translates back,
                 // so child origins accumulate with parents. Use relative Y to compensate:
                 // accumulated origin Y of any bone = its absolute Bedrock pivot Y.
                 String parentLower = boneParentMap.getOrDefault(bone.getName().toLowerCase(Locale.ROOT), "");
                 float parentPivotY = bonePivotY.getOrDefault(parentLower, 0f);
-                part.setOrigin(0, pivotY - parentPivotY, 0);
+                part.setOrigin(0, javaPivotY - parentPivotY, 0);
+                ((IModelPart)((Object)part)).viaBedrockUtility$setPivot(new Vector3f(0, 0, 0));
+                part.setDefaultTransform(part.getTransform());
+            } else if (isArm) {
+                // Held-item layers only follow originXYZ. Keep this bone origin relative to its
+                // Java parent so arm children such as sleeves are not translated twice.
+                // Root arms are reparented onto "root", so their parent pivot is 0.
+                String boneLower = bone.getName().toLowerCase(Locale.ROOT);
+                float parentJavaX = 0f;
+                float parentJavaY = 0f;
+                float parentJavaZ = 0f;
+                if (!isPlayerRootBone(boneLower)) {
+                    String parentLower = boneParentMap.getOrDefault(boneLower, "");
+                    float[] parentPivot = boneJavaPivots.get(parentLower);
+                    if (parentPivot != null) {
+                        parentJavaX = parentPivot[0];
+                        parentJavaY = parentPivot[1];
+                        parentJavaZ = parentPivot[2];
+                    }
+                }
+                part.setOrigin(javaPivotX - parentJavaX, javaPivotY - parentJavaY, javaPivotZ - parentJavaZ);
+                ((IModelPart)((Object)part)).viaBedrockUtility$setPivot(new Vector3f(0, 0, 0));
                 part.setDefaultTransform(part.getTransform());
             } else {
-                ((IModelPart)((Object)part)).viaBedrockUtility$setPivot(new Vector3f(bone.getPivot().getX(), -bone.getPivot().getY() + 24.016F, bone.getPivot().getZ()));
+                ((IModelPart)((Object)part)).viaBedrockUtility$setPivot(new Vector3f(javaPivotX, isLeg ? javaPivotY : -bone.getPivot().getY() + 24.016F, javaPivotZ));
             }
 
             // Java don't allow individual cubes to have their own rotation therefore, we have to separate each cube into ModelPart to be able to rotate.
@@ -118,12 +152,28 @@ public final class GeometryUtil {
                     }
                 }
 
-                final ModelPart.Cuboid cuboid = new ModelPart.Cuboid(0, 0, pos.getX(), isLeg ? pos.getY() : -(pos.getY() - 24.016F + sizeY), pos.getZ(), sizeX, sizeY, sizeZ, inflate, inflate, inflate, cube.isMirror(), uvWidth, uvHeight, set);
+                float cubeX = pos.getX();
+                float cubeY = isLeg ? pos.getY() : -(pos.getY() - 24.016F + sizeY);
+                float cubeZ = pos.getZ();
+                if (isArm) {
+                    cubeX -= javaPivotX;
+                    cubeY -= javaPivotY;
+                    cubeZ -= javaPivotZ;
+                }
+                final ModelPart.Cuboid cuboid = new ModelPart.Cuboid(0, 0, cubeX, cubeY, cubeZ, sizeX, sizeY, sizeZ, inflate, inflate, inflate, cube.isMirror(), uvWidth, uvHeight, set);
                 correctUv(cuboid, set, uvMap, uvWidth, uvHeight, cube.getInflate(), cube.isMirror());
                 ((ICuboid)(Object) cuboid).viaBedrockUtility$markAsVBU();
 
                 final ModelPart cubePart = new ModelPart(List.of(cuboid), Map.of());
-                ((IModelPart)((Object)cubePart)).viaBedrockUtility$setPivot(new Vector3f(cube.getPivot().getX(), -cube.getPivot().getY() + 24.016F, cube.getPivot().getZ()));
+                float cubePivotX = cube.getPivot().getX();
+                float cubePivotY = -cube.getPivot().getY() + 24.016F;
+                float cubePivotZ = cube.getPivot().getZ();
+                if (isArm) {
+                    cubePivotX -= javaPivotX;
+                    cubePivotY -= javaPivotY;
+                    cubePivotZ -= javaPivotZ;
+                }
+                ((IModelPart)((Object)cubePart)).viaBedrockUtility$setPivot(new Vector3f(cubePivotX, cubePivotY, cubePivotZ));
                 ((IModelPart)((Object)cubePart)).viaBedrockUtility$setAngles(new Vector3f(cube.getRotation().getX(), cube.getRotation().getY(), cube.getRotation().getZ()));
                 ((IModelPart)((Object)cubePart)).viaBedrockUtility$setVBUModel();
                 ((IModelPart)((Object)cubePart)).viaBedrockUtility$setNeededOffset(neededOffset);
@@ -133,13 +183,13 @@ public final class GeometryUtil {
 
             // Handle poly_mesh: convert pre-computed polygon data to Cuboid/Quad/Vertex
             if (bone.getPolyMesh() != null) {
-                buildPolyMeshParts(bone.getPolyMesh(), isLeg, neededOffset, bone.getName(), uvWidth, uvHeight, children);
+                buildPolyMeshParts(bone.getPolyMesh(), isLeg, neededOffset, bone.getName(), uvWidth, uvHeight, children, isArm ? javaPivotX : 0f, isArm ? javaPivotY : 0f, isArm ? javaPivotZ : 0f);
             }
 
             String parent = bone.getParent();
             String name = bone.getName();
             if (player) {
-                switch (name.toLowerCase(Locale.ROOT)) { // Also do this with the overlays? Those are final, though.
+                switch (name.toLowerCase(Locale.ROOT)) {
                     case "head", "rightarm", "body", "leftarm", "leftleg", "rightleg" -> parent = "root";
                 }
             }
@@ -219,6 +269,27 @@ public final class GeometryUtil {
         validateAndFixCycles(root.part(), "root", new IdentityHashMap<>(), new ArrayList<>(), geometryName);
 
         return player ? new PlayerEntityModel(root.part(), slim) : new CustomEntityModel<>(root.part());
+    }
+
+    private static void expandWithDescendants(final Set<String> related, final Map<String, String> boneParentMap) {
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (Map.Entry<String, String> entry : boneParentMap.entrySet()) {
+                if (!related.contains(entry.getKey()) && related.contains(entry.getValue())) {
+                    related.add(entry.getKey());
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    private static boolean isPlayerRootBone(final String lowerName) {
+        return switch (lowerName) {
+            case "head", "rightarm", "body", "leftarm", "leftleg", "rightleg",
+                 "left_arm", "right_arm", "left_leg", "right_leg" -> true;
+            default -> false;
+        };
     }
 
     private static String adjustFormatting(boolean player, String name) {
@@ -361,7 +432,7 @@ public final class GeometryUtil {
 
     private static void buildPolyMeshParts(PolyMesh polyMesh, boolean isLeg, boolean neededOffset,
                                            String boneName, float uvWidth, float uvHeight,
-                                           Map<String, ModelPart> children) {
+                                           Map<String, ModelPart> children, float originX, float originY, float originZ) {
         final float[][] pmPositions = polyMesh.getPositions();
         final float[][] pmNormals = polyMesh.getNormals();
         final float[][] pmUvs = polyMesh.getUvs();
@@ -387,6 +458,11 @@ public final class GeometryUtil {
                 // Coordinate transform: Bedrock -> Java model space
                 if (!isLeg) {
                     py = -py + 24.016F;
+                }
+                if (!isLeg) {
+                    px -= originX;
+                    py -= originY;
+                    pz -= originZ;
                 }
 
                 // UV transform

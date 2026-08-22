@@ -77,6 +77,10 @@ loom {
 }
 
 repositories {
+	maven {
+		name = "AliyunPublic"
+		url = "https://maven.aliyun.com/repository/public"
+	}
 	mavenLocal()
 	maven {
 		name = "Jitpack"

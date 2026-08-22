@@ -11,7 +11,7 @@ import net.easecation.bedrockmotion.pack.definitions.EntityDefinitions;
 import net.easecation.bedrockmotion.render.RenderControllerEvaluator;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.entity.EntityRendererFactory;
-import net.minecraft.client.render.entity.equipment.EquipmentModelLoader;
+import org.oryxel.viabedrockutility.util.EntityRendererContexts;
 import net.minecraft.util.Identifier;
 import org.cube.converter.data.bedrock.BedrockEntityData;
 import org.cube.converter.data.bedrock.controller.BedrockRenderController;
@@ -92,17 +92,7 @@ public class CustomEntityTicker implements AnimationEventListener {
 
     public CustomEntityTicker(final EntityDefinitions.EntityDefinition entityDefinition) {
         final MinecraftClient client = MinecraftClient.getInstance();
-        //? if >=1.21.9 {
-        final EntityRendererFactory.Context context = new EntityRendererFactory.Context(client.getEntityRenderDispatcher(),
-                client.getItemModelManager(), client.getMapRenderer(), client.getBlockRenderManager(),
-                client.getResourceManager(), client.getLoadedEntityModels(), new EquipmentModelLoader(),
-                client.getAtlasManager(), client.textRenderer, client.getPlayerSkinCache());
-        //?} else {
-        /*final EntityRendererFactory.Context context = new EntityRendererFactory.Context(client.getEntityRenderDispatcher(),
-                client.getItemModelManager(), client.getMapRenderer(), client.getBlockRenderManager(),
-                client.getResourceManager(), client.getLoadedEntityModels(), new EquipmentModelLoader(),
-                client.textRenderer);
-        *///?}
+        final EntityRendererFactory.Context context = EntityRendererContexts.create(client);
         this.renderer = new CustomEntityRenderer<>(this, new CopyOnWriteArrayList<>(), context);
 
         this.entityDefinition = entityDefinition;

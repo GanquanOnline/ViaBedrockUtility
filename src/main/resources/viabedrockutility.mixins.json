@@ -9,6 +9,7 @@
   },
   "client": [
     "MinecraftClientMixin",
+    "accessor.EntityRenderManagerAccessor",
     "accessor.PlayerSkinFieldAccessor",
     "entity.EntityMixin",
     "entity.InteractionEntityMixin",
@@ -21,6 +22,7 @@
     "render.PlayerEntityModelMixin",
     "render.PlayerEntityRenderStateMixin",
     "render.dispatcher.EntityRenderDispatcherMixin",
+    "render.feature.ArmorFeatureRendererMixin",
     "render.feature.CapeFeatureRendererMixin",
     "sound.SoundSystemMixin",
     "world.ClientWorldMixin"
