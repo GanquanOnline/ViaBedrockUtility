@@ -24,15 +24,19 @@ class SkinArmModelTest {
     }
 
     @Test
-    void motDocumentMentioningBothTemplatesUsesArmWidth() {
+    void motDocumentMentioningBothTemplatesUsesSelectedHumanoid() {
+        final String motDefault = motDocumentWithBothArmTemplates();
+        assertTrue(motDefault.contains("customSlim"));
+        assertFalse(SkinArmModel.isSlim(WIDE_PATCH, motDefault));
+        assertTrue(SkinArmModel.isSlim(SLIM_PATCH, motDefault));
+
         final String steveGeo = geometryDocument("geometry.humanoid.custom", 4f);
-        assertTrue(steveGeo.contains("customSlim"));
         assertFalse(SkinArmModel.isSlim(WIDE_PATCH, steveGeo));
-        assertFalse(SkinArmModel.isSlim(SLIM_PATCH, steveGeo));
+        assertTrue(SkinArmModel.isSlim(SLIM_PATCH, steveGeo));
 
         final String alexGeo = geometryDocument("geometry.humanoid.customSlim", 3f);
         assertTrue(SkinArmModel.isSlim(SLIM_PATCH, alexGeo));
-        assertTrue(SkinArmModel.isSlim(WIDE_PATCH, alexGeo));
+        assertFalse(SkinArmModel.isSlim(WIDE_PATCH, alexGeo));
     }
 
     @Test
@@ -41,6 +45,31 @@ class SkinArmModelTest {
         final String alex = "{\"minecraft:geometry\":[{\"description\":{\"identifier\":\"geometry.humanoid.customSlim\"}}]}";
         assertFalse(SkinArmModel.isSlim(WIDE_PATCH, steve));
         assertTrue(SkinArmModel.isSlim(SLIM_PATCH, alex));
+    }
+
+    private static String motDocumentWithBothArmTemplates() {
+        return """
+                {
+                  "format_version": "1.12.0",
+                  "minecraft:geometry": [
+                    {"description": {"identifier": "geometry.cape"}},
+                    {
+                      "description": {"identifier": "geometry.humanoid.custom"},
+                      "bones": [
+                        {"name": "leftArm", "cubes": [{"size": [4, 12, 4]}]},
+                        {"name": "rightArm", "cubes": [{"size": [4, 12, 4]}]}
+                      ]
+                    },
+                    {
+                      "description": {"identifier": "geometry.humanoid.customSlim"},
+                      "bones": [
+                        {"name": "leftArm", "cubes": [{"size": [3, 12, 4]}]},
+                        {"name": "rightArm", "cubes": [{"size": [3, 12, 4]}]}
+                      ]
+                    }
+                  ]
+                }
+                """;
     }
 
     private static String geometryDocument(final String identifier, final float armWidth) {

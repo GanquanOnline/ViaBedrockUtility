@@ -56,10 +56,6 @@ public final class SkinArmModel {
     }
 
     public static boolean isSlim(final String resourcePatch, final String geometryRaw) {
-        final Float armWidth = armWidthFromGeometryJson(geometryRaw);
-        if (armWidth != null) {
-            return armWidth < 3.5f;
-        }
         final String required = defaultGeometry(resourcePatch);
         if (isSlimGeometryName(required)) {
             return true;
@@ -67,10 +63,21 @@ public final class SkinArmModel {
         if (isWideGeometryName(required)) {
             return false;
         }
+        final Float armWidth = armWidthFromGeometryJson(geometryRaw, required);
+        if (armWidth != null) {
+            return armWidth < 3.5f;
+        }
         return geometryRaw != null && looksLikeSlimIdentifier(geometryRaw) && !looksLikeWideIdentifier(geometryRaw);
     }
 
     public static boolean isSlim(final String resourcePatch, final String geometryRaw, final BedrockGeometryModel selected) {
+        final String required = defaultGeometry(resourcePatch);
+        if (isSlimGeometryName(required)) {
+            return true;
+        }
+        if (isWideGeometryName(required)) {
+            return false;
+        }
         if (selected != null) {
             final Float armWidth = armWidthFromModel(selected);
             if (armWidth != null) {
@@ -163,16 +170,69 @@ public final class SkinArmModel {
         return minWidth == Float.MAX_VALUE ? null : minWidth;
     }
 
-    private static Float armWidthFromGeometryJson(final String geometryRaw) {
+    private static Float armWidthFromGeometryJson(final String geometryRaw, final String requiredGeometry) {
         if (geometryRaw == null || geometryRaw.isBlank()) {
             return null;
         }
         try {
-            final float minWidth = scanForArmWidth(JsonParser.parseString(geometryRaw));
+            final JsonElement root = JsonParser.parseString(geometryRaw);
+            final JsonObject selected = selectGeometryObject(root, requiredGeometry);
+            final float minWidth = scanForArmWidth(selected != null ? selected : root);
             return minWidth == Float.MAX_VALUE ? null : minWidth;
         } catch (final Exception ignored) {
             return null;
         }
+    }
+
+    private static JsonObject selectGeometryObject(final JsonElement element, final String requiredGeometry) {
+        if (element == null || element.isJsonNull()) {
+            return null;
+        }
+        if (element.isJsonArray()) {
+            JsonObject humanoid = null;
+            for (final JsonElement child : element.getAsJsonArray()) {
+                final JsonObject match = selectGeometryObject(child, requiredGeometry);
+                if (match == null) {
+                    continue;
+                }
+                final String identifier = geometryIdentifier(match);
+                if (requiredGeometry != null && requiredGeometry.equals(identifier)) {
+                    return match;
+                }
+                if (isClassicHumanoid(identifier) && humanoid == null) {
+                    humanoid = match;
+                }
+            }
+            return humanoid;
+        }
+        if (!element.isJsonObject()) {
+            return null;
+        }
+        final JsonObject object = element.getAsJsonObject();
+        if (object.has("minecraft:geometry")) {
+            return selectGeometryObject(object.get("minecraft:geometry"), requiredGeometry);
+        }
+        final String identifier = geometryIdentifier(object);
+        if (requiredGeometry != null && requiredGeometry.equals(identifier)) {
+            return object;
+        }
+        if (isClassicHumanoid(identifier) && object.has("bones")) {
+            return object;
+        }
+        return null;
+    }
+
+    private static String geometryIdentifier(final JsonObject object) {
+        if (object.has("description") && object.get("description").isJsonObject()) {
+            final JsonObject description = object.getAsJsonObject("description");
+            if (description.has("identifier") && description.get("identifier").isJsonPrimitive()) {
+                return description.get("identifier").getAsString();
+            }
+        }
+        if (object.has("identifier") && object.get("identifier").isJsonPrimitive()) {
+            return object.get("identifier").getAsString();
+        }
+        return null;
     }
 
     private static float scanForArmWidth(final JsonElement element) {
