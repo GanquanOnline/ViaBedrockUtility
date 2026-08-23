@@ -40,13 +40,15 @@ import org.oryxel.viabedrockutility.mixin.interfaces.IBedrockAnimatedModel;
 import net.easecation.bedrockmotion.pack.definitions.AnimationDefinitions;
 import org.oryxel.viabedrockutility.renderer.AnimatedSkinOverlay;
 import org.oryxel.viabedrockutility.renderer.CustomPlayerRenderer;
+import org.oryxel.viabedrockutility.util.BedrockTextureIds;
 import org.oryxel.viabedrockutility.util.GeometryUtil;
-
 import org.oryxel.viabedrockutility.util.ImageUtil;
 import org.oryxel.viabedrockutility.util.PlayerSkinBuilder;
+import org.oryxel.viabedrockutility.util.SkinArmModel;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Getter
 public class PayloadHandler {
@@ -56,18 +58,47 @@ public class PayloadHandler {
     protected final Map<UUID, SkinInfo> cachedSkinInfo = new ConcurrentHashMap<>();
     protected final Map<UUID, CachedPlayerSkin> cachedPlayerSkins = new ConcurrentHashMap<>();
     protected final Map<UUID, Map<Integer, PendingAnimation>> pendingAnimations = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedQueue<BasePayload> pendingUntilPackReady = new ConcurrentLinkedQueue<>();
     protected PackManager packManager;
 
     public void handle(final BasePayload payload) {
         if (this.packManager != ViaBedrockUtility.getInstance().getPackManager()) {
             this.packManager = ViaBedrockUtility.getInstance().getPackManager();
+            if (this.packManager != null) {
+                flushPendingUntilPackReady();
+            }
         }
 
-        if (this.packManager == null) {
-            ViaBedrockUtilityFabric.LOGGER.warn("[Payload] Received {} but PackManager is null, ignoring", payload.getClass().getSimpleName());
+        if (this.packManager == null && requiresPackManager(payload)) {
+            this.pendingUntilPackReady.add(payload);
+            ViaBedrockUtilityFabric.LOGGER.debug("[Payload] Queuing {} until PackManager is ready", payload.getClass().getSimpleName());
             return;
         }
 
+        dispatch(payload);
+    }
+
+    public void onPackManagerReady() {
+        this.packManager = ViaBedrockUtility.getInstance().getPackManager();
+        flushPendingUntilPackReady();
+    }
+
+    private void flushPendingUntilPackReady() {
+        BasePayload pending;
+        while ((pending = this.pendingUntilPackReady.poll()) != null) {
+            dispatch(pending);
+        }
+    }
+
+    private static boolean requiresPackManager(final BasePayload payload) {
+        return payload instanceof ModelRequestPayload
+                || payload instanceof AnimateEntityPayload
+                || payload instanceof SpawnParticlePayload
+                || payload instanceof SkinAnimationInfoPayload
+                || payload instanceof SkinAnimationDataPayload;
+    }
+
+    private void dispatch(final BasePayload payload) {
         if (payload instanceof ModelRequestPayload modelRequest) {
             this.handle(modelRequest);
         } else if (payload instanceof BaseSkinPayload baseSkin) {
@@ -199,7 +230,7 @@ public class PayloadHandler {
         }
 
         final MinecraftClient client = MinecraftClient.getInstance();
-        client.getTextureManager().registerTexture(payload.getIdentifier(), new NativeImageBackedTexture(() -> payload.getIdentifier().toString() + capeImage.hashCode() , capeImage));
+        registerDynamicTexture(client, payload.getIdentifier(), capeImage);
 
         if (client.getNetworkHandler() == null) {
             return;
@@ -223,9 +254,6 @@ public class PayloadHandler {
 
         ((PlayerSkinFieldAccessor)entry).setPlayerSkin(builder::build);
     }
-
-    private static final List<String> HARDCODED_GEOMETRY_IDENTIFIERS = List.of(
-            "geometry.humanoid.custom", "geometry.humanoid.customSlim");
 
     public void handle(final SkinDataPayload payload) {
         final SkinInfo info = this.cachedSkinInfo.get(payload.getPlayerUuid());
@@ -253,8 +281,8 @@ public class PayloadHandler {
 
         final MinecraftClient client = MinecraftClient.getInstance();
 
-        final Identifier identifier = Identifier.of(ViaBedrockUtilityFabric.MOD_ID, payload.getPlayerUuid().toString());
-        client.getTextureManager().registerTexture(identifier, new NativeImageBackedTexture(() -> identifier.toString() + skinImage.hashCode(), skinImage));
+        final Identifier identifier = BedrockTextureIds.ofPlayerSkin(payload.getPlayerUuid());
+        registerDynamicTexture(client, identifier, skinImage);
         ViaBedrockUtilityFabric.LOGGER.debug("[Skin] Texture registered: {}", identifier);
 
         if (client.getNetworkHandler() != null) {
@@ -281,65 +309,34 @@ public class PayloadHandler {
         }
 
         // Ex: skinResourcePatch={"geometry":{"default":"geometry.humanoid.custom.1742391406.1704"}}
-        String requiredGeometry = null;
-        try {
-            requiredGeometry = JsonParser.parseString(info.getResourcePatch()).getAsJsonObject()
-                    .getAsJsonObject("geometry").get("default").getAsString();
-        } catch (Exception ignored) {}
+        final String requiredGeometry = SkinArmModel.defaultGeometry(info.getResourcePatch());
         ViaBedrockUtilityFabric.LOGGER.debug("[Skin] requiredGeometry={} resourcePatch={}", requiredGeometry, info.getResourcePatch());
 
-        // Hardcoded I know...
-        boolean slim = requiredGeometry != null && requiredGeometry.startsWith("geometry.humanoid.customSlim");
-
         PlayerEntityModel model = null;
+        BedrockGeometryModel selectedGeometry = null;
         if (!info.getGeometryRaw().isEmpty()) {
-            final List<BedrockGeometryModel> geometries;
             try {
                 final JsonObject object = JsonParser.parseString(info.getGeometryRaw()).getAsJsonObject();
-                geometries = BedrockGeometryModel.fromJson(object);
-
-                if (!geometries.isEmpty()) {
-                    BedrockGeometryModel geometry = geometries.getFirst();
-                    if (requiredGeometry != null) {
-                        for (final BedrockGeometryModel geometryModel : geometries) {
-                            if (geometryModel.getIdentifier().equals(requiredGeometry)) {
-                                geometry = geometryModel;
-                                break;
-                            }
-                        }
-                    }
-
-                    model = (PlayerEntityModel) GeometryUtil.buildModel(geometry, true, slim);
-                    ViaBedrockUtilityFabric.LOGGER.debug("[Skin] Built custom geometry model for {}", payload.getPlayerUuid());
+                final List<BedrockGeometryModel> geometries = BedrockGeometryModel.fromJson(object);
+                selectedGeometry = SkinArmModel.selectPlayerGeometry(geometries, requiredGeometry);
+                if (selectedGeometry != null) {
+                    final boolean slimFromGeometry = SkinArmModel.isSlim(info.getResourcePatch(), info.getGeometryRaw(), selectedGeometry);
+                    model = (PlayerEntityModel) GeometryUtil.buildModel(selectedGeometry, true, slimFromGeometry);
+                    ViaBedrockUtilityFabric.LOGGER.debug("[Skin] Built custom geometry '{}' (slim={}) for {}",
+                            selectedGeometry.getIdentifier(), slimFromGeometry, payload.getPlayerUuid());
                 }
             } catch (final Exception e) {
                 ViaBedrockUtilityFabric.LOGGER.error("[Skin] Failed to parse geometry for {}: {}", payload.getPlayerUuid(), e.getMessage());
             }
         }
 
-        if (model == null) {
-            if (requiredGeometry == null) {
-                ViaBedrockUtilityFabric.LOGGER.warn("[Skin] requiredGeometry is null, returning early for {}", payload.getPlayerUuid());
-                return;
-            }
-
-            boolean found = false;
-
-            for (final String i : HARDCODED_GEOMETRY_IDENTIFIERS) {
-                if (i.equals(requiredGeometry) || requiredGeometry.startsWith(i + ".")) {
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found) {
-                ViaBedrockUtilityFabric.LOGGER.warn("[Skin] Geometry '{}' not in hardcoded list, returning early for {}", requiredGeometry, payload.getPlayerUuid());
-                return;
-            }
-        }
+        final boolean slim = SkinArmModel.isSlim(info.getResourcePatch(), info.getGeometryRaw(), selectedGeometry);
 
         if (model == null) {
-            // This is likely a classic skin with hardcoded identifier! TODO: 128x128
+            if (requiredGeometry != null && !SkinArmModel.isClassicHumanoid(requiredGeometry)) {
+                ViaBedrockUtilityFabric.LOGGER.warn("[Skin] Geometry '{}' is not a classic humanoid and custom model failed for {}", requiredGeometry, payload.getPlayerUuid());
+                return;
+            }
             model = new PlayerEntityModel(PlayerEntityModel.getTexturedModelData(Dilation.NONE, slim).getRoot().createPart(64, 64), slim);
             ViaBedrockUtilityFabric.LOGGER.debug("[Skin] Using default player model (slim={}) for {}", slim, payload.getPlayerUuid());
         }
@@ -459,6 +456,26 @@ public class PayloadHandler {
         cachedPlayerSkins.remove(uuid);
         cachedSkinInfo.remove(uuid);
         pendingAnimations.remove(uuid);
+    }
+
+    public void clearSessionCaches() {
+        cachedPlayerRenderers.clear();
+        cachedCustomEntities.clear();
+        cachedPlayerCapes.clear();
+        cachedSkinInfo.clear();
+        cachedPlayerSkins.clear();
+        pendingAnimations.clear();
+        pendingUntilPackReady.clear();
+    }
+
+    private static void registerDynamicTexture(final MinecraftClient client, final Identifier identifier, final NativeImage image) {
+        final Runnable register = () -> client.getTextureManager().registerTexture(
+                identifier, new NativeImageBackedTexture(() -> identifier.toString() + image.hashCode(), image));
+        if (client.isOnThread()) {
+            register.run();
+        } else {
+            client.execute(register);
+        }
     }
 
     @Getter
@@ -597,9 +614,9 @@ public class PayloadHandler {
             return;
         }
 
-        final Identifier textureId = Identifier.of(ViaBedrockUtilityFabric.MOD_ID, playerUuid.toString() + "/anim_" + pending.animIndex);
+        final Identifier textureId = BedrockTextureIds.ofSkinAnimation(playerUuid, pending.animIndex);
         final MinecraftClient client = MinecraftClient.getInstance();
-        client.getTextureManager().registerTexture(textureId, new NativeImageBackedTexture(() -> textureId.toString() + textureImage.hashCode(), textureImage));
+        registerDynamicTexture(client, textureId, textureImage);
 
         // Create and attach the overlay
         final int totalFrames = pending.totalFrames;

@@ -5,8 +5,8 @@ import lombok.RequiredArgsConstructor;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.network.codec.PacketDecoder;
 import net.minecraft.util.Identifier;
-import org.oryxel.viabedrockutility.fabric.ViaBedrockUtilityFabric;
 import org.oryxel.viabedrockutility.payload.BasePayload;
+import org.oryxel.viabedrockutility.util.BedrockTextureIds;
 
 import java.util.UUID;
 
@@ -19,7 +19,7 @@ public final class CapeDataPayload extends BasePayload {
         int height = buf.readInt();
 
         String capeId = BasePayload.readString(buf);
-        Identifier identifier = Identifier.of(ViaBedrockUtilityFabric.MOD_ID, capeId);
+        Identifier identifier = BedrockTextureIds.ofCape(capeId);
 
         byte[] capeData = new byte[buf.readInt()];
         buf.readBytes(capeData);

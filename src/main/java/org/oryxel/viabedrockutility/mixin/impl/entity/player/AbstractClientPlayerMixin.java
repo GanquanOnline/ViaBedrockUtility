@@ -42,9 +42,10 @@ public abstract class AbstractClientPlayerMixin {
         boolean changed = false;
 
         if (skinCache != null) {
-            if (body == null || !skinCache.getTextureId().equals(body.texturePath())) {
+            PlayerSkinType expected = skinCache.isSlim() ? PlayerSkinType.SLIM : PlayerSkinType.WIDE;
+            if (body == null || !skinCache.getTextureId().equals(body.texturePath()) || model != expected) {
                 body = new AssetInfo.TextureAssetInfo(skinCache.getTextureId(), skinCache.getTextureId());
-                model = skinCache.isSlim() ? PlayerSkinType.SLIM : PlayerSkinType.WIDE;
+                model = expected;
                 changed = true;
             }
         }

@@ -63,6 +63,9 @@ public class ServerResourcePackLoaderMixin {
         TextureProcessor.process(textureContents);
 
         ViaBedrockUtility.getInstance().setPackManager(new PackManager(contents));
+        if (ViaBedrockUtility.getInstance().getPayloadHandler() != null) {
+            ViaBedrockUtility.getInstance().getPayloadHandler().onPackManagerReady();
+        }
 
         // Load particle definitions into BEParticle
         loadParticleDefinitions(contents);

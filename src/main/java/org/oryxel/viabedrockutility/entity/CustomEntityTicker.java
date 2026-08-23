@@ -24,6 +24,7 @@ import org.oryxel.viabedrockutility.material.data.Material;
 import org.oryxel.viabedrockutility.payload.handler.CustomEntityPayloadHandler;
 import org.oryxel.viabedrockutility.renderer.CustomEntityRenderer;
 import org.oryxel.viabedrockutility.renderer.model.CustomEntityModel;
+import org.oryxel.viabedrockutility.util.BedrockTextureIds;
 import org.oryxel.viabedrockutility.util.GeometryUtil;
 import team.unnamed.mocha.runtime.Scope;
 import team.unnamed.mocha.runtime.value.MutableObjectBinding;
@@ -254,7 +255,7 @@ public class CustomEntityTicker implements AnimationEventListener {
         final Set<String> old = new HashSet<>(this.availableModels);
         this.availableModels.clear();
         for (RenderControllerEvaluator.EvaluatedModel model : this.models) {
-            final Identifier texture = Identifier.of(model.textureValue().toLowerCase(Locale.ROOT));
+            final Identifier texture = BedrockTextureIds.ofPackTexture(model.textureValue());
 
             BedrockGeometryModel geometry = this.packManager.getModelDefinitions().getEntityModels().get(model.geometryValue());
             if (geometry == null) {

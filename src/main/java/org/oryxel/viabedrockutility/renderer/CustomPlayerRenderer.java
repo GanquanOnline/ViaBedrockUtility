@@ -3,7 +3,9 @@ package org.oryxel.viabedrockutility.renderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.PlayerEntityRenderer;
 import net.minecraft.client.render.entity.model.PlayerEntityModel;
+import net.minecraft.client.render.entity.state.EntityRenderState;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
+import net.minecraft.entity.Entity;
 import net.minecraft.util.Identifier;
 import org.oryxel.viabedrockutility.mixin.interfaces.ICustomPlayerRendererHolder;
 
@@ -31,6 +33,14 @@ public class CustomPlayerRenderer extends PlayerEntityRenderer {
         PlayerEntityRenderState state = super.createRenderState();
         ((ICustomPlayerRendererHolder) state).viaBedrockUtility$setCustomPlayerRenderer(this);
         return state;
+    }
+
+    @Override
+    public void updateRenderState(final Entity entity, final EntityRenderState state, final float tickDelta) {
+        super.updateRenderState(entity, state, tickDelta);
+        if (state instanceof ICustomPlayerRendererHolder holder) {
+            holder.viaBedrockUtility$setCustomPlayerRenderer(this);
+        }
     }
 
     @Override
