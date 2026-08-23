@@ -309,8 +309,9 @@ public class PayloadHandler {
         }
 
         // Ex: skinResourcePatch={"geometry":{"default":"geometry.humanoid.custom.1742391406.1704"}}
-        final String requiredGeometry = SkinArmModel.defaultGeometry(info.getResourcePatch());
-        ViaBedrockUtilityFabric.LOGGER.debug("[Skin] requiredGeometry={} resourcePatch={}", requiredGeometry, info.getResourcePatch());
+        final boolean slim = SkinArmModel.isSlim(info.getResourcePatch(), info.getGeometryRaw(), info.getData(), info.getWidth(), info.getHeight());
+        final String requiredGeometry = SkinArmModel.requiredGeometry(info.getResourcePatch(), slim);
+        ViaBedrockUtilityFabric.LOGGER.debug("[Skin] requiredGeometry={} slim={} resourcePatch={}", requiredGeometry, slim, info.getResourcePatch());
 
         PlayerEntityModel model = null;
         BedrockGeometryModel selectedGeometry = null;
@@ -320,17 +321,14 @@ public class PayloadHandler {
                 final List<BedrockGeometryModel> geometries = BedrockGeometryModel.fromJson(object);
                 selectedGeometry = SkinArmModel.selectPlayerGeometry(geometries, requiredGeometry);
                 if (selectedGeometry != null) {
-                    final boolean slimFromGeometry = SkinArmModel.isSlim(info.getResourcePatch(), info.getGeometryRaw(), selectedGeometry);
-                    model = (PlayerEntityModel) GeometryUtil.buildModel(selectedGeometry, true, slimFromGeometry);
+                    model = (PlayerEntityModel) GeometryUtil.buildModel(selectedGeometry, true, slim);
                     ViaBedrockUtilityFabric.LOGGER.debug("[Skin] Built custom geometry '{}' (slim={}) for {}",
-                            selectedGeometry.getIdentifier(), slimFromGeometry, payload.getPlayerUuid());
+                            selectedGeometry.getIdentifier(), slim, payload.getPlayerUuid());
                 }
             } catch (final Exception e) {
                 ViaBedrockUtilityFabric.LOGGER.error("[Skin] Failed to parse geometry for {}: {}", payload.getPlayerUuid(), e.getMessage());
             }
         }
-
-        final boolean slim = SkinArmModel.isSlim(info.getResourcePatch(), info.getGeometryRaw(), selectedGeometry);
 
         if (model == null) {
             if (requiredGeometry != null && !SkinArmModel.isClassicHumanoid(requiredGeometry)) {

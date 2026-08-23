@@ -1,6 +1,5 @@
 package org.oryxel.viabedrockutility.util;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -56,27 +55,39 @@ public final class SkinArmModel {
     }
 
     public static boolean isSlim(final String resourcePatch, final String geometryRaw) {
-        final String required = defaultGeometry(resourcePatch);
-        if (isSlimGeometryName(required)) {
-            return true;
-        }
-        if (isWideGeometryName(required)) {
-            return false;
-        }
-        final Float armWidth = armWidthFromGeometryJson(geometryRaw, required);
-        if (armWidth != null) {
-            return armWidth < 3.5f;
-        }
-        return geometryRaw != null && looksLikeSlimIdentifier(geometryRaw) && !looksLikeWideIdentifier(geometryRaw);
+        return isSlim(resourcePatch, geometryRaw, null, null, 0, 0);
     }
 
     public static boolean isSlim(final String resourcePatch, final String geometryRaw, final BedrockGeometryModel selected) {
+        return isSlim(resourcePatch, geometryRaw, selected, null, 0, 0);
+    }
+
+    public static boolean isSlim(final String resourcePatch, final String geometryRaw, final byte[] skinRgba, final int width, final int height) {
+        return isSlim(resourcePatch, geometryRaw, null, skinRgba, width, height);
+    }
+
+    /**
+     * MOT default geometry includes both Steve and Alex templates. Prefer an explicit
+     * {@code skinResourcePatch}, then an unambiguous identifier, then the unused 4th
+     * Steve arm column in the 64x64 texture. Never take the smallest arm cube across
+     * the whole document.
+     */
+    public static boolean isSlim(final String resourcePatch, final String geometryRaw, final BedrockGeometryModel selected,
+                                 final byte[] skinRgba, final int width, final int height) {
         final String required = defaultGeometry(resourcePatch);
         if (isSlimGeometryName(required)) {
             return true;
         }
         if (isWideGeometryName(required)) {
             return false;
+        }
+        final Boolean fromGeometry = slimFromUnambiguousGeometry(geometryRaw);
+        if (fromGeometry != null) {
+            return fromGeometry;
+        }
+        final Boolean fromTexture = slimFromRgba(skinRgba, width, height);
+        if (fromTexture != null) {
+            return fromTexture;
         }
         if (selected != null) {
             final Float armWidth = armWidthFromModel(selected);
@@ -90,7 +101,57 @@ public final class SkinArmModel {
                 return false;
             }
         }
-        return isSlim(resourcePatch, geometryRaw);
+        return false;
+    }
+
+    public static String requiredGeometry(final String resourcePatch, final boolean slim) {
+        final String required = defaultGeometry(resourcePatch);
+        if (required != null && !required.isBlank()) {
+            return required;
+        }
+        return slim ? SLIM_GEOMETRY : WIDE_GEOMETRY;
+    }
+
+    public static Boolean slimFromRgba(final byte[] data, final int width, final int height) {
+        if (data == null || width <= 0 || height <= 0 || data.length < width * height * 4) {
+            return null;
+        }
+        if (width < 64 || height < 32) {
+            return null;
+        }
+        if (height < 64) {
+            return Boolean.FALSE;
+        }
+        final int scale = Math.max(1, width / 64);
+        int opaque = 0;
+        int samples = 0;
+        for (int dy = 0; dy < 12; dy++) {
+            for (int sy = 0; sy < scale; sy++) {
+                for (int sx = 0; sx < scale; sx++) {
+                    final int x = 43 * scale + sx;
+                    final int y = 20 * scale + dy * scale + sy;
+                    if (x >= width || y >= height) {
+                        continue;
+                    }
+                    samples++;
+                    final int index = (y * width + x) * 4;
+                    if ((data[index + 3] & 0xFF) > 128) {
+                        opaque++;
+                    }
+                }
+            }
+        }
+        if (samples == 0) {
+            return null;
+        }
+        final float ratio = opaque / (float) samples;
+        if (ratio < 0.15f) {
+            return Boolean.TRUE;
+        }
+        if (ratio > 0.50f) {
+            return Boolean.FALSE;
+        }
+        return null;
     }
 
     public static BedrockGeometryModel selectPlayerGeometry(final List<BedrockGeometryModel> geometries, final String requiredGeometry) {
@@ -142,16 +203,60 @@ public final class SkinArmModel {
         return name.equals(expected) || name.startsWith(expected + ".");
     }
 
-    private static boolean looksLikeSlimIdentifier(final String geometryRaw) {
-        return geometryRaw.contains("\"" + SLIM_GEOMETRY + "\"")
-                || geometryRaw.contains("'" + SLIM_GEOMETRY + "'")
-                || geometryRaw.contains(SLIM_GEOMETRY + ".");
+    private static Boolean slimFromUnambiguousGeometry(final String geometryRaw) {
+        if (geometryRaw == null || geometryRaw.isBlank()) {
+            return null;
+        }
+        final String trimmed = geometryRaw.trim();
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+            if (isSlimGeometryName(trimmed)) {
+                return Boolean.TRUE;
+            }
+            if (isWideGeometryName(trimmed)) {
+                return Boolean.FALSE;
+            }
+            return null;
+        }
+        try {
+            final JsonElement root = JsonParser.parseString(trimmed);
+            final boolean[] found = new boolean[2];
+            collectHumanoidIdentifiers(root, found);
+            if (found[0] && !found[1]) {
+                return Boolean.TRUE;
+            }
+            if (found[1] && !found[0]) {
+                return Boolean.FALSE;
+            }
+            return null;
+        } catch (final Exception ignored) {
+            return null;
+        }
     }
 
-    private static boolean looksLikeWideIdentifier(final String geometryRaw) {
-        return geometryRaw.contains("\"" + WIDE_GEOMETRY + "\"")
-                || geometryRaw.contains("'" + WIDE_GEOMETRY + "'")
-                || geometryRaw.contains(WIDE_GEOMETRY + ".");
+    private static void collectHumanoidIdentifiers(final JsonElement element, final boolean[] found) {
+        if (element == null || element.isJsonNull()) {
+            return;
+        }
+        if (element.isJsonArray()) {
+            for (final JsonElement child : element.getAsJsonArray()) {
+                collectHumanoidIdentifiers(child, found);
+            }
+            return;
+        }
+        if (!element.isJsonObject()) {
+            return;
+        }
+        final JsonObject object = element.getAsJsonObject();
+        if (object.has("minecraft:geometry")) {
+            collectHumanoidIdentifiers(object.get("minecraft:geometry"), found);
+            return;
+        }
+        final String identifier = geometryIdentifier(object);
+        if (isSlimGeometryName(identifier)) {
+            found[0] = true;
+        } else if (isWideGeometryName(identifier)) {
+            found[1] = true;
+        }
     }
 
     private static Float armWidthFromModel(final BedrockGeometryModel geometry) {
@@ -170,58 +275,6 @@ public final class SkinArmModel {
         return minWidth == Float.MAX_VALUE ? null : minWidth;
     }
 
-    private static Float armWidthFromGeometryJson(final String geometryRaw, final String requiredGeometry) {
-        if (geometryRaw == null || geometryRaw.isBlank()) {
-            return null;
-        }
-        try {
-            final JsonElement root = JsonParser.parseString(geometryRaw);
-            final JsonObject selected = selectGeometryObject(root, requiredGeometry);
-            final float minWidth = scanForArmWidth(selected != null ? selected : root);
-            return minWidth == Float.MAX_VALUE ? null : minWidth;
-        } catch (final Exception ignored) {
-            return null;
-        }
-    }
-
-    private static JsonObject selectGeometryObject(final JsonElement element, final String requiredGeometry) {
-        if (element == null || element.isJsonNull()) {
-            return null;
-        }
-        if (element.isJsonArray()) {
-            JsonObject humanoid = null;
-            for (final JsonElement child : element.getAsJsonArray()) {
-                final JsonObject match = selectGeometryObject(child, requiredGeometry);
-                if (match == null) {
-                    continue;
-                }
-                final String identifier = geometryIdentifier(match);
-                if (requiredGeometry != null && requiredGeometry.equals(identifier)) {
-                    return match;
-                }
-                if (isClassicHumanoid(identifier) && humanoid == null) {
-                    humanoid = match;
-                }
-            }
-            return humanoid;
-        }
-        if (!element.isJsonObject()) {
-            return null;
-        }
-        final JsonObject object = element.getAsJsonObject();
-        if (object.has("minecraft:geometry")) {
-            return selectGeometryObject(object.get("minecraft:geometry"), requiredGeometry);
-        }
-        final String identifier = geometryIdentifier(object);
-        if (requiredGeometry != null && requiredGeometry.equals(identifier)) {
-            return object;
-        }
-        if (isClassicHumanoid(identifier) && object.has("bones")) {
-            return object;
-        }
-        return null;
-    }
-
     private static String geometryIdentifier(final JsonObject object) {
         if (object.has("description") && object.get("description").isJsonObject()) {
             final JsonObject description = object.getAsJsonObject("description");
@@ -233,49 +286,6 @@ public final class SkinArmModel {
             return object.get("identifier").getAsString();
         }
         return null;
-    }
-
-    private static float scanForArmWidth(final JsonElement element) {
-        float minWidth = Float.MAX_VALUE;
-        if (element == null || element.isJsonNull()) {
-            return minWidth;
-        }
-        if (element.isJsonArray()) {
-            for (final JsonElement child : element.getAsJsonArray()) {
-                minWidth = Math.min(minWidth, scanForArmWidth(child));
-            }
-            return minWidth;
-        }
-        if (!element.isJsonObject()) {
-            return minWidth;
-        }
-        final JsonObject object = element.getAsJsonObject();
-        if (object.has("minecraft:geometry")) {
-            minWidth = Math.min(minWidth, scanForArmWidth(object.get("minecraft:geometry")));
-        }
-        if (object.has("bones")) {
-            minWidth = Math.min(minWidth, scanForArmWidth(object.get("bones")));
-        }
-        final String name = object.has("name") && object.get("name").isJsonPrimitive()
-                ? object.get("name").getAsString()
-                : "";
-        if (isArmBone(name) && object.has("cubes") && object.get("cubes").isJsonArray()) {
-            final JsonArray cubes = object.getAsJsonArray("cubes");
-            for (final JsonElement cubeElement : cubes) {
-                if (!cubeElement.isJsonObject()) {
-                    continue;
-                }
-                final JsonObject cube = cubeElement.getAsJsonObject();
-                if (!cube.has("size") || !cube.get("size").isJsonArray() || cube.getAsJsonArray("size").isEmpty()) {
-                    continue;
-                }
-                final float width = Math.abs(cube.getAsJsonArray("size").get(0).getAsFloat());
-                if (width > 0.1f && width < minWidth) {
-                    minWidth = width;
-                }
-            }
-        }
-        return minWidth;
     }
 
     private static boolean isArmBone(final String name) {

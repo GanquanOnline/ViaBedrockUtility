@@ -24,11 +24,19 @@ class SkinArmModelTest {
     }
 
     @Test
-    void motDocumentMentioningBothTemplatesUsesSelectedHumanoid() {
+    void motDocumentMentioningBothTemplatesUsesPatchOrTexture() {
         final String motDefault = motDocumentWithBothArmTemplates();
         assertTrue(motDefault.contains("customSlim"));
         assertFalse(SkinArmModel.isSlim(WIDE_PATCH, motDefault));
         assertTrue(SkinArmModel.isSlim(SLIM_PATCH, motDefault));
+        assertFalse(SkinArmModel.isSlim("", motDefault));
+
+        final byte[] stevePixels = armColumnRgba(true);
+        final byte[] alexPixels = armColumnRgba(false);
+        assertFalse(SkinArmModel.isSlim("", motDefault, stevePixels, 64, 64));
+        assertTrue(SkinArmModel.isSlim("", motDefault, alexPixels, 64, 64));
+        assertEquals("geometry.humanoid.customSlim", SkinArmModel.requiredGeometry("", true));
+        assertEquals("geometry.humanoid.custom", SkinArmModel.requiredGeometry("", false));
 
         final String steveGeo = geometryDocument("geometry.humanoid.custom", 4f);
         assertFalse(SkinArmModel.isSlim(WIDE_PATCH, steveGeo));
@@ -70,6 +78,21 @@ class SkinArmModelTest {
                   ]
                 }
                 """;
+    }
+
+    private static byte[] armColumnRgba(final boolean painted) {
+        final byte[] data = new byte[64 * 64 * 4];
+        if (!painted) {
+            return data;
+        }
+        for (int y = 20; y < 32; y++) {
+            final int index = (y * 64 + 43) * 4;
+            data[index] = (byte) 0x33;
+            data[index + 1] = (byte) 0x66;
+            data[index + 2] = (byte) 0xAA;
+            data[index + 3] = (byte) 0xFF;
+        }
+        return data;
     }
 
     private static String geometryDocument(final String identifier, final float armWidth) {
