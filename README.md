@@ -33,6 +33,8 @@ Changing payload layout requires a matching change in ViaBedrock_NetEase.
 
 - Decode the previously unimplemented `ANIMATE` payload (UUID + animation name) so leftover bytes do not disconnect 1.21.11
 - Play triggered animations on custom entities and Bedrock player skins
+- Reject truncated / out-of-range `viabedrockutility:data` and `becamera:data` type/string lengths instead of throwing on `values()[type]`
+- Replay a player animation from t=0; drop one-shot clips after `animation_length` so finished clips stop ticking every frame
 - Fall back to a bundled `enums.html` when the remote enum dump is unavailable
 - CubeConverter UV map API (`getUvMap()`) plus extra actor-flag MoLang mappings
 

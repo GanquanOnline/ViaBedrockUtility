@@ -18,7 +18,13 @@ public class CameraPayload implements CustomPayload {
     public static final String CONFIRM_CHANNEL_PATH = "confirm";
 
     public static final PacketCodec<PacketByteBuf, CameraPayload> STREAM_CODEC = PacketCodec.of(null, buf -> {
+        if (buf.readableBytes() < 4) {
+            throw new IllegalStateException("Camera payload truncated before type");
+        }
         final int type = buf.readInt();
+        if (type < 0 || type >= CameraPayloadType.values().length) {
+            throw new IllegalStateException("Unknown camera payload type: " + type);
+        }
         final CameraPayloadType payloadType = CameraPayloadType.values()[type];
 
         switch (payloadType) {
@@ -59,7 +65,13 @@ public class CameraPayload implements CustomPayload {
     }
 
     public static String readString(PacketByteBuf buf) {
+        if (buf.readableBytes() < 4) {
+            throw new IllegalStateException("Camera string truncated before length");
+        }
         int length = buf.readInt();
+        if (length < 0 || length > buf.readableBytes()) {
+            throw new IllegalStateException("Camera string length out of bounds: " + length + " remaining=" + buf.readableBytes());
+        }
         String result = buf.toString(buf.readerIndex(), length, StandardCharsets.UTF_8);
         buf.readerIndex(buf.readerIndex() + length);
         return result;

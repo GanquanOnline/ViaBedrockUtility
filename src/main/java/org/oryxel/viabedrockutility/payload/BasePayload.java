@@ -24,8 +24,11 @@ public class BasePayload implements CustomPayload {
     public static Id<BasePayload> ID = new Id<>(Identifier.of(ViaBedrockUtilityFabric.MOD_ID, "data"));
 
     public static final PacketCodec<PacketByteBuf, BasePayload> STREAM_CODEC = PacketCodec.of(null, buf -> {
+        if (buf.readableBytes() < 4) {
+            throw new RuntimeException("VBU payload truncated before type");
+        }
         final int type = buf.readInt();
-        if (type > PayloadType.values().length - 1) {
+        if (type < 0 || type >= PayloadType.values().length) {
             throw new RuntimeException("Invalid type: " + type);
         }
 
@@ -123,7 +126,13 @@ public class BasePayload implements CustomPayload {
     }
 
     public static String readString(PacketByteBuf buf) {
+        if (buf.readableBytes() < 4) {
+            throw new RuntimeException("VBU string truncated before length");
+        }
         int length = buf.readInt();
+        if (length < 0 || length > buf.readableBytes()) {
+            throw new RuntimeException("VBU string length out of bounds: " + length + " remaining=" + buf.readableBytes());
+        }
         String result = buf.toString(buf.readerIndex(), length, StandardCharsets.UTF_8);
         buf.readerIndex(buf.readerIndex() + length);
         return result;

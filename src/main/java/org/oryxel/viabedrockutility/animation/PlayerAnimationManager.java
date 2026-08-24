@@ -89,12 +89,13 @@ public class PlayerAnimationManager {
     );
 
     private final Map<String, AnimationDefinitions.AnimationData> animations = new LinkedHashMap<>();
+    private final Map<String, Long> startTimeMS = new HashMap<>();
     private final Set<String> affectedBones = new HashSet<>();
-    private final long startTimeMS = System.currentTimeMillis();
     private final Vector3f tempVec = new Vector3f();
 
     public void addAnimation(String shortName, AnimationDefinitions.AnimationData data) {
         animations.put(shortName, data);
+        startTimeMS.put(shortName, System.currentTimeMillis());
         affectedBones.addAll(data.compiled().boneAnimations().keySet());
     }
 
@@ -123,8 +124,12 @@ public class PlayerAnimationManager {
 
         final McBoneModel boneModel = new McBoneModel(model);
         final Scope scope = buildScope(state);
-        final long elapsed = System.currentTimeMillis() - startTimeMS;
-        for (Map.Entry<String, AnimationDefinitions.AnimationData> entry : animations.entrySet()) {
+        final long now = System.currentTimeMillis();
+        final Iterator<Map.Entry<String, AnimationDefinitions.AnimationData>> iterator = animations.entrySet().iterator();
+        while (iterator.hasNext()) {
+            final Map.Entry<String, AnimationDefinitions.AnimationData> entry = iterator.next();
+            final long startedAt = startTimeMS.getOrDefault(entry.getKey(), now);
+            final long elapsed = Math.max(0L, now - startedAt);
             final List<BoneClear> clears = VANILLA_CLEAR_MAP.get(entry.getKey());
             if (clears != null) {
                 for (BoneClear bc : clears) {
@@ -137,6 +142,32 @@ public class PlayerAnimationManager {
                 }
             }
             AnimationHelper.animate(scope, boneModel, entry.getValue().compiled(), elapsed, 1.0f, tempVec, null);
+            if (isFinished(entry.getValue(), elapsed)) {
+                iterator.remove();
+                startTimeMS.remove(entry.getKey());
+            }
+        }
+        rebuildAffectedBones();
+    }
+
+    static boolean isFinished(AnimationDefinitions.AnimationData data, long elapsedMs) {
+        if (data == null || data.compiled() == null) {
+            return true;
+        }
+        if (data.compiled().looping()) {
+            return false;
+        }
+        final float length = data.compiled().lengthInSeconds();
+        if (length <= 0f) {
+            return false;
+        }
+        return elapsedMs >= (long) (length * 1000f);
+    }
+
+    private void rebuildAffectedBones() {
+        affectedBones.clear();
+        for (AnimationDefinitions.AnimationData data : animations.values()) {
+            affectedBones.addAll(data.compiled().boneAnimations().keySet());
         }
     }
 
