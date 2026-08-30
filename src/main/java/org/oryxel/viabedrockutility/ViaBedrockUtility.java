@@ -30,6 +30,7 @@ public class ViaBedrockUtility {
     private CameraPayloadHandler cameraPayloadHandler;
     private PackManager packManager;
     private boolean viaBedrockPresent;
+    private boolean spectatorNoclip;
 
     public void init() {
         VanillaMaterials.init();

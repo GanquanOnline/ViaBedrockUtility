@@ -30,9 +30,12 @@ public class ClientLoginNetworkHandlerMixin {
         // Let ViaBedrock know that we want to receive full bedrock pack, also we have to do this to send it early.
         // Also use a different identifier to avoiding sending the same one twice.
         ViaBedrockUtility.getInstance().setViaBedrockPresent(false);
+        ViaBedrockUtility.getInstance().setSpectatorNoclip(false);
         ViaBedrockUtilityFabric.LOGGER.info("[Handshake] Login success, sending confirm channel registration to ViaBedrock...");
         this.connection.send(new CustomPayloadC2SPacket(new RegistrationPayload(RegistrationPayload.REGISTER, List.of(
                 Identifier.of(ViaBedrockUtilityFabric.MOD_ID, "confirm"),
+                Identifier.of(ViaBedrockUtilityFabric.MOD_ID, "particle_runtime_v2"),
+                Identifier.of(ViaBedrockUtilityFabric.MOD_ID, "spectator_noclip"),
                 Identifier.of(CameraPayload.CONFIRM_CHANNEL_ID, CameraPayload.CONFIRM_CHANNEL_PATH)
         ))));
     }

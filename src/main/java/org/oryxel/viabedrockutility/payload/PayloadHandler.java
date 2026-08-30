@@ -34,7 +34,9 @@ import org.oryxel.viabedrockutility.payload.impl.skin.CapeDataPayload;
 import org.oryxel.viabedrockutility.payload.impl.skin.SkinAnimationDataPayload;
 import org.oryxel.viabedrockutility.payload.impl.skin.SkinAnimationInfoPayload;
 import org.oryxel.viabedrockutility.payload.impl.skin.SkinDataPayload;
+import org.oryxel.viabedrockutility.payload.impl.SpectatorNoclipPayload;
 import org.oryxel.viabedrockutility.payload.impl.particle.SpawnParticlePayload;
+import org.oryxel.viabedrockutility.payload.impl.particle.SpawnParticleV2Payload;
 import org.oryxel.viabedrockutility.animation.PlayerAnimationManager;
 import org.oryxel.viabedrockutility.mixin.interfaces.IBedrockAnimatedModel;
 import net.easecation.bedrockmotion.pack.definitions.AnimationDefinitions;
@@ -94,6 +96,7 @@ public class PayloadHandler {
         return payload instanceof ModelRequestPayload
                 || payload instanceof AnimateEntityPayload
                 || payload instanceof SpawnParticlePayload
+                || payload instanceof SpawnParticleV2Payload
                 || payload instanceof SkinAnimationInfoPayload
                 || payload instanceof SkinAnimationDataPayload;
     }
@@ -115,6 +118,10 @@ public class PayloadHandler {
             this.handle(animData);
         } else if (payload instanceof SpawnParticlePayload particlePayload) {
             this.handle(particlePayload);
+        } else if (payload instanceof SpawnParticleV2Payload particleV2Payload) {
+            this.handle(particleV2Payload);
+        } else if (payload instanceof SpectatorNoclipPayload spectatorNoclipPayload) {
+            this.handle(spectatorNoclipPayload);
         } else if (payload instanceof AnimateEntityPayload animatePayload) {
             this.handle(animatePayload);
         }
@@ -181,6 +188,41 @@ public class PayloadHandler {
                 molangVars
         );
         ViaBedrockUtilityFabric.LOGGER.info("[Particle:L4] spawnEmitter result: {} (definitions loaded: {})", emitter != null ? "SUCCESS" : "NULL (definition not found)", net.easecation.beparticle.ParticleManager.INSTANCE.getDefinitionCount());
+    }
+
+    public void handle(final SpawnParticleV2Payload payload) {
+        Map<String, Float> molangVars = null;
+        final String json = payload.getMolangVarsJson();
+        if (json != null && !json.isEmpty()) {
+            molangVars = parseMolangVarsJson(json);
+        }
+        final MinecraftClient client = MinecraftClient.getInstance();
+        org.joml.Vector3f position = new org.joml.Vector3f(payload.getX(), payload.getY(), payload.getZ());
+        int entityId = -1;
+        if (payload.getAnchorKind() == 1 && payload.getOwnerUuid() != null && client != null && client.world != null) {
+            final net.minecraft.entity.Entity owner = client.world.getEntity(payload.getOwnerUuid());
+            if (owner != null) {
+                entityId = owner.getId();
+                position = new org.joml.Vector3f(
+                        (float) owner.getX() + payload.getX(),
+                        (float) owner.getY() + payload.getY(),
+                        (float) owner.getZ() + payload.getZ()
+                );
+            }
+        }
+        final var emitter = entityId >= 0
+                ? net.easecation.beparticle.ParticleManager.INSTANCE.spawnEmitter(payload.getIdentifier(), position, entityId, molangVars)
+                : net.easecation.beparticle.ParticleManager.INSTANCE.spawnEmitter(payload.getIdentifier(), position, molangVars);
+        ViaBedrockUtilityFabric.LOGGER.info("[Particle:L4] spawnEmitter V2 result: {} anchor={} entityId={}", emitter != null ? "SUCCESS" : "NULL (definition not found)", payload.getAnchorKind(), entityId);
+    }
+
+    public void handle(final SpectatorNoclipPayload payload) {
+        ViaBedrockUtility.getInstance().setSpectatorNoclip(payload.isEnabled());
+        final MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && client.player != null) {
+            client.player.noClip = payload.isEnabled() || client.player.isSpectator();
+        }
+        ViaBedrockUtilityFabric.LOGGER.debug("[Spectator] noclip enabled={}", payload.isEnabled());
     }
 
     /**

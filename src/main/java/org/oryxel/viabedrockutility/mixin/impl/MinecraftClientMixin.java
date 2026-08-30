@@ -14,6 +14,7 @@ public class MinecraftClientMixin {
     @Inject(method = "disconnect(Lnet/minecraft/client/gui/screen/Screen;Z)V", at = @At("HEAD"))
     private void disconnect(Screen disconnectionScreen, boolean transferring, CallbackInfo ci) {
         ViaBedrockUtility.getInstance().setViaBedrockPresent(false);
+        ViaBedrockUtility.getInstance().setSpectatorNoclip(false);
         if (ViaBedrockUtility.getInstance().getPayloadHandler() == null) {
             return;
         }
