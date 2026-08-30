@@ -103,6 +103,22 @@ public class BasePayload implements CustomPayload {
                 yield new SpawnParticlePayload(identifier, x, y, z, molangVarsJson);
             }
 
+            case SPAWN_PARTICLE_V2 -> {
+                final String identifier = readString(buf);
+                final int anchorKind = buf.readUnsignedByte();
+                final java.util.UUID ownerUuid = buf.readBoolean() ? buf.readUuid() : null;
+                final float x = buf.readFloat();
+                final float y = buf.readFloat();
+                final float z = buf.readFloat();
+                final String molangVarsJson = buf.readBoolean() ? readString(buf) : "";
+                ViaBedrockUtilityFabric.LOGGER.info("[Particle:L3] Decoded SPAWN_PARTICLE_V2 payload: {} anchor={} owner={} at ({}, {}, {})", identifier, anchorKind, ownerUuid, x, y, z);
+                yield new SpawnParticleV2Payload(identifier, anchorKind, ownerUuid, x, y, z, molangVarsJson);
+            }
+
+            case SPECTATOR_NOCLIP -> {
+                yield new org.oryxel.viabedrockutility.payload.impl.SpectatorNoclipPayload(buf.readBoolean());
+            }
+
             default -> throw new IllegalStateException("Unexpected value: " + PayloadType.values()[type]);
         };
         if (buf.readableBytes() > 0) {
