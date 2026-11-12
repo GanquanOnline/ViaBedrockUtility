@@ -14,6 +14,7 @@ public interface IModelPart {
     void viaBedrockUtility$setNeededOffset(boolean needed);
     void viaBedrockUtility$setOffset(Vector3f vec3);
     void viaBedrockUtility$setPivot(Vector3f vec3);
+    Vector3f viaBedrockUtility$getPivot();
     void viaBedrockUtility$setAngles(Vector3f vec3);
     void viaBedrockUtility$addOffset(Vector3f vec3);
     void viaBedrockUtility$addAngles(Vector3f vec3);

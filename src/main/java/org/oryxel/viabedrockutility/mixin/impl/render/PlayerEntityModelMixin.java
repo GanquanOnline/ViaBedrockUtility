@@ -27,13 +27,15 @@ public abstract class PlayerEntityModelMixin implements IBedrockAnimatedModel {
 
     @Inject(method = "setAngles(Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;)V", at = @At("TAIL"))
     private void applyBedrockAnimations(PlayerEntityRenderState state, CallbackInfo ci) {
-        if (this.animationManager == null) {
+        if (this.animationManager == null || this.animationManager.isEmpty()) {
             return;
         }
+
+        final PlayerEntityModel model = (PlayerEntityModel) (Object) this;
 
         // Clearing of vanilla rotations and applying Bedrock animations is handled
         // per-animation inside PlayerAnimationManager.animate() to avoid clearing
         // bones that are not targeted by a specific animation.
-        animationManager.animate((PlayerEntityModel) (Object) this, state);
+        animationManager.animate(model, state);
     }
 }

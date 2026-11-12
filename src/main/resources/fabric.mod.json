@@ -12,6 +12,9 @@
 		"main": [
 			"org.oryxel.viabedrockutility.fabric.ViaBedrockUtilityFabric"
 		],
+		"client": [
+			"org.oryxel.viabedrockutility.fabric.ViaBedrockUtilityClient"
+		],
 		"modmenu": [
 			"org.oryxel.viabedrockutility.config.ModMenuIntegration"
 		],

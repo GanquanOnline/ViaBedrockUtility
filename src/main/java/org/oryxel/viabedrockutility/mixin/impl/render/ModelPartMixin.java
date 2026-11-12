@@ -144,6 +144,11 @@ public abstract class ModelPartMixin implements IModelPart {
     }
 
     @Override
+    public Vector3f viaBedrockUtility$getPivot() {
+        return this.pivot;
+    }
+
+    @Override
     public void viaBedrockUtility$setOffset(Vector3f vec3) {
         this.offset.set(vec3.x, -vec3.y, vec3.z);
     }

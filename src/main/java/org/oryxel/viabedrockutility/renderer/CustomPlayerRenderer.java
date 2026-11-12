@@ -6,6 +6,7 @@ import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.render.entity.state.EntityRenderState;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.entity.Entity;
+import net.easecation.bedrockmotion.pack.definitions.AnimationDefinitions;
 import net.minecraft.util.Identifier;
 import org.oryxel.viabedrockutility.mixin.interfaces.ICustomPlayerRendererHolder;
 
@@ -26,6 +27,7 @@ public class CustomPlayerRenderer extends PlayerEntityRenderer {
 
         this.texture = texture;
         this.addFeature(new AnimatedOverlayFeatureRenderer(this));
+        this.addFeature(new VbuHeldItemLayer(this));
     }
 
     @Override

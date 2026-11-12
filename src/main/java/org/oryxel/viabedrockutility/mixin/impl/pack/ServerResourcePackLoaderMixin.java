@@ -5,6 +5,7 @@ import net.minecraft.client.resource.server.ServerResourcePackLoader;
 import net.minecraft.resource.ResourcePackProfile;
 import org.oryxel.viabedrockutility.ViaBedrockUtility;
 import org.oryxel.viabedrockutility.fabric.ViaBedrockUtilityFabric;
+import org.oryxel.viabedrockutility.pack.processor.ItemTextureOverride;
 import org.oryxel.viabedrockutility.pack.processor.TextureProcessor;
 import net.easecation.bedrockmotion.pack.PackManager;
 import net.easecation.bedrockmotion.pack.content.Content;
@@ -29,6 +30,7 @@ public class ServerResourcePackLoaderMixin {
         ViaBedrockUtilityFabric.LOGGER.debug("[ResourcePack] Intercepting server resource packs, {} pack(s) received", packs.size());
         final List<Content> contents = new ArrayList<>();
         packs.stream().map(ReloadScheduler.PackInfo::path).forEach(pack -> {
+            ItemTextureOverride.apply(pack);
             try {
                 final Content content = new Content(Files.readAllBytes(pack));
                 final List<String> mcpacks = content.getFilesDeep("bedrock/", ".mcpack");

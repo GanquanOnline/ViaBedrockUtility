@@ -50,6 +50,7 @@ public class CustomEntityTicker implements AnimationEventListener {
     private final org.oryxel.viabedrockutility.pack.definitions.MaterialDefinitions vbuMaterialDefinitions =
             new org.oryxel.viabedrockutility.pack.definitions.MaterialDefinitions(this.packManager);
 
+    @Getter
     private final EntityDefinitions.EntityDefinition entityDefinition;
     private final Map<String, String> inverseGeometryMap = new HashMap<>();
     private final Map<String, String> inverseTextureMap = new HashMap<>();
@@ -312,6 +313,7 @@ public class CustomEntityTicker implements AnimationEventListener {
                                     controller,
                                     this.entityDefinition.entityData().getAnimations(),
                                     this.packManager.getAnimationDefinitions(),
+                                    this.packManager.getAnimationControllerDefinitions(),
                                     this);
                             this.controllerInstances.add(instance);
                             ViaBedrockUtilityFabric.LOGGER.debug("[Animation] Registered controller '{}' ({})", animate.name(), animId);

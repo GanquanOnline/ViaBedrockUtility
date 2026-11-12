@@ -6,6 +6,7 @@ import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.util.Identifier;
 import org.oryxel.viabedrockutility.fabric.ViaBedrockUtilityFabric;
 import org.oryxel.viabedrockutility.util.BedrockTextureIds;
+import org.oryxel.viabedrockutility.pack.PackWatermark;
 import net.easecation.bedrockmotion.pack.content.Content;
 
 import java.io.IOException;
@@ -42,6 +43,9 @@ public class TextureProcessor {
                         final Identifier vanilla = BedrockTextureIds.ofVanillaParticle(path);
                         final NativeImage particleCopy = NativeImage.read(png);
                         client.getTextureManager().registerTexture(vanilla, new NativeImageBackedTexture(() -> vanilla.toString() + particleCopy.hashCode(), particleCopy));
+                    }
+                    if (PackWatermark.TEXTURE.equals(identifier)) {
+                        PackWatermark.markAvailable();
                     }
                 } catch (final IllegalArgumentException e) {
                     ViaBedrockUtilityFabric.LOGGER.warn("Unable to register texture {} as a Java identifier", path);
