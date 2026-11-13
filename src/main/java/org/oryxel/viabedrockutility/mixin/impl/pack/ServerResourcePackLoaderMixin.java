@@ -5,6 +5,7 @@ import net.minecraft.client.resource.server.ServerResourcePackLoader;
 import net.minecraft.resource.ResourcePackProfile;
 import org.oryxel.viabedrockutility.ViaBedrockUtility;
 import org.oryxel.viabedrockutility.fabric.ViaBedrockUtilityFabric;
+import org.oryxel.viabedrockutility.pack.processor.GeometryProcessor;
 import org.oryxel.viabedrockutility.pack.processor.ItemTextureOverride;
 import org.oryxel.viabedrockutility.pack.processor.TextureProcessor;
 import net.easecation.bedrockmotion.pack.PackManager;
@@ -65,6 +66,7 @@ public class ServerResourcePackLoaderMixin {
         TextureProcessor.process(textureContents);
 
         ViaBedrockUtility.getInstance().setPackManager(new PackManager(contents));
+        GeometryProcessor.process(ViaBedrockUtility.getInstance().getPackManager(), contents);
         if (ViaBedrockUtility.getInstance().getPayloadHandler() != null) {
             ViaBedrockUtility.getInstance().getPayloadHandler().onPackManagerReady();
         }
