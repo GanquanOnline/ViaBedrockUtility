@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import lombok.Getter;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.model.Dilation;
+import net.minecraft.client.model.ModelPart;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
@@ -37,6 +38,7 @@ import org.oryxel.viabedrockutility.payload.impl.skin.SkinDataPayload;
 import org.oryxel.viabedrockutility.payload.impl.particle.SpawnParticlePayload;
 import org.oryxel.viabedrockutility.animation.PlayerAnimationManager;
 import org.oryxel.viabedrockutility.mixin.interfaces.IBedrockAnimatedModel;
+import org.oryxel.viabedrockutility.mixin.interfaces.IModelPart;
 import net.easecation.bedrockmotion.pack.definitions.AnimationDefinitions;
 import org.oryxel.viabedrockutility.renderer.AnimatedSkinOverlay;
 import org.oryxel.viabedrockutility.renderer.CustomPlayerRenderer;
@@ -343,6 +345,12 @@ public class PayloadHandler {
         this.cachedPlayerRenderers.put(payload.getPlayerUuid(), new CustomPlayerRenderer(entityContext, model, slim, identifier));
         this.cachedPlayerSkins.put(payload.getPlayerUuid(), new CachedPlayerSkin(identifier, slim, info.getGeometryRaw(), info.getResourcePatch()));
         ViaBedrockUtilityFabric.LOGGER.debug("[Skin] CustomPlayerRenderer created for {}", payload.getPlayerUuid());
+
+        logSkinModel(payload.getPlayerUuid(), model,
+                selectedGeometry != null ? selectedGeometry.getIdentifier() : "<vanilla>", slim);
+        if (client.player != null && client.player.getUuid().equals(payload.getPlayerUuid())) {
+            logPart(model.getRootPart(), 0);
+        }
 
         // Parse animation overrides from skinResourcePatch.animations
         if (this.packManager != null) {
@@ -676,6 +684,53 @@ public class PayloadHandler {
                 offset += chunk.length;
             }
             return result;
+        }
+    }
+
+    /**
+     * One line per skin model. Records which bone the held-item layer anchors on, so a misplaced
+     * item can be read straight from the log instead of being inferred from a screenshot.
+     */
+    private static void logSkinModel(final UUID uuid, final PlayerEntityModel model, final String geometry, final boolean slim) {
+        ViaBedrockUtilityFabric.LOGGER.info("[SkinModel] uuid={} geometry={} slim={} parts={} rightArm={} leftArm={}",
+                uuid, geometry, slim, countParts(model.getRootPart()),
+                describePart(model.rightArm), describePart(model.leftArm));
+    }
+
+    private static String describePart(final ModelPart part) {
+        final IModelPart vbu = (IModelPart) (Object) part;
+        if (vbu.viaBedrockUtility$getCuboids().isEmpty() && vbu.viaBedrockUtility$getChildren().isEmpty()) {
+            return "<missing>";
+        }
+        return String.format(Locale.ROOT, "%s origin=(%.2f,%.2f,%.2f) pivot=(%.2f,%.2f,%.2f)",
+                vbu.viaBedrockUtility$getName(), part.originX, part.originY, part.originZ,
+                vbu.viaBedrockUtility$getPivot().x, vbu.viaBedrockUtility$getPivot().y, vbu.viaBedrockUtility$getPivot().z);
+    }
+
+    private static int countParts(final ModelPart part) {
+        int total = 1;
+        for (final ModelPart child : ((IModelPart) (Object) part).viaBedrockUtility$getChildren().values()) {
+            total += countParts(child);
+        }
+        return total;
+    }
+
+    private static void logPart(final ModelPart part, final int depth) {
+        final IModelPart vbu = (IModelPart) (Object) part;
+        final StringBuilder bounds = new StringBuilder();
+        for (final ModelPart.Cuboid cuboid : vbu.viaBedrockUtility$getCuboids()) {
+            bounds.append(String.format(Locale.ROOT, " [(%.2f,%.2f,%.2f)..(%.2f,%.2f,%.2f)]",
+                    cuboid.minX, cuboid.minY, cuboid.minZ, cuboid.maxX, cuboid.maxY, cuboid.maxZ));
+        }
+        ViaBedrockUtilityFabric.LOGGER.info(String.format(Locale.ROOT,
+                "[SkinModel] %s%s origin=(%.2f,%.2f,%.2f) pivot=(%.2f,%.2f,%.2f) rot=(%.2f,%.2f,%.2f) cubes=%d%s",
+                "  ".repeat(depth), vbu.viaBedrockUtility$getName().isEmpty() ? "<unnamed>" : vbu.viaBedrockUtility$getName(),
+                part.originX, part.originY, part.originZ,
+                vbu.viaBedrockUtility$getPivot().x, vbu.viaBedrockUtility$getPivot().y, vbu.viaBedrockUtility$getPivot().z,
+                part.pitch, part.yaw, part.roll,
+                vbu.viaBedrockUtility$getCuboids().size(), bounds));
+        for (final ModelPart child : vbu.viaBedrockUtility$getChildren().values()) {
+            logPart(child, depth + 1);
         }
     }
 }

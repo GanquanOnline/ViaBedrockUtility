@@ -98,8 +98,10 @@ public final class GeometryUtil {
                 // accumulated origin Y of any bone = its absolute Bedrock pivot Y.
                 String parentLower = boneParentMap.getOrDefault(bone.getName().toLowerCase(Locale.ROOT), "");
                 float parentPivotY = bonePivotY.getOrDefault(parentLower, 0f);
-                part.setOrigin(0, javaPivotY - parentPivotY, 0);
-                ((IModelPart)((Object)part)).viaBedrockUtility$setPivot(new Vector3f(0, 0, 0));
+                final Vector3f hip = new Vector3f(0, javaPivotY - parentPivotY, 0);
+                part.setOrigin(hip.x, hip.y, hip.z);
+                // Same point as the origin keeps rotation centered on the hip instead of the model origin.
+                ((IModelPart)((Object)part)).viaBedrockUtility$setPivot(hip);
                 part.setDefaultTransform(part.getTransform());
             } else if (isArm) {
                 // Held-item layers only follow originXYZ. Keep this bone origin relative to its
@@ -118,8 +120,11 @@ public final class GeometryUtil {
                         parentJavaZ = parentPivot[2];
                     }
                 }
-                part.setOrigin(javaPivotX - parentJavaX, javaPivotY - parentJavaY, javaPivotZ - parentJavaZ);
-                ((IModelPart)((Object)part)).viaBedrockUtility$setPivot(new Vector3f(0, 0, 0));
+                final Vector3f shoulder = new Vector3f(javaPivotX - parentJavaX, javaPivotY - parentJavaY, javaPivotZ - parentJavaZ);
+                part.setOrigin(shoulder.x, shoulder.y, shoulder.z);
+                // Same point as the origin keeps rotation centered on the shoulder, which is also the
+                // anchor held-item layers read; a zero pivot swings the arm around the model origin.
+                ((IModelPart)((Object)part)).viaBedrockUtility$setPivot(shoulder);
                 part.setDefaultTransform(part.getTransform());
             } else {
                 ((IModelPart)((Object)part)).viaBedrockUtility$setPivot(new Vector3f(javaPivotX, isLeg ? javaPivotY : -bone.getPivot().getY() + 24.016F, javaPivotZ));
@@ -301,11 +306,18 @@ public final class GeometryUtil {
             return null;
         }
 
+        // PlayerEntityModel looks up its overlay layers by Java bone names; the Bedrock
+        // geometry names them leftSleeve/rightPants, so map them or the outer skin layer
+        // (sleeves, pants) never gets a part and is silently dropped.
         return switch (name.toLowerCase(Locale.ROOT)) {
             case "leftarm" -> "left_arm";
             case "rightarm" -> "right_arm";
             case "leftleg" -> "left_leg";
             case "rightleg" -> "right_leg";
+            case "leftsleeve" -> "left_sleeve";
+            case "rightsleeve" -> "right_sleeve";
+            case "leftpants" -> "left_pants";
+            case "rightpants" -> "right_pants";
             default -> name.toLowerCase(Locale.ROOT);
         };
     }
